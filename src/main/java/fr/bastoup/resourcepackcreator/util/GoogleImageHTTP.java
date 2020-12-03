@@ -5,6 +5,9 @@ import com.squareup.okhttp.HttpUrl;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,39 +65,65 @@ public class GoogleImageHTTP {
         return allMatches;
     }
 
-    public static byte[] resourceBytes(HttpUrl url, OkHttpClient client) throws IOException {
+    public static InputStream resourceStream(HttpUrl url, OkHttpClient client) throws IOException {
 
         Request req = new Request.Builder().get().url(url).build();
 
-        return client.newCall(req).execute().body().bytes();
+        return client.newCall(req).execute().body().byteStream();
     }
 
-    public static File dlRandomImage(String search, File dir) throws IOException {
-        if(!dir.isDirectory())
-            throw new IllegalArgumentException("Argument #2 must be a directory");
+    public static void dlRandomImage(String search, int width, int height, File file) throws IOException {
 
         OkHttpClient client = new OkHttpClient();
         Random rdm = new Random();
 
         List<String> images = getImages(search, client);
 
-        HttpUrl url = HttpUrl.parse(images.get(rdm.nextInt(images.size())));
-        System.out.println("Using url: " + url.toString());
+        BufferedImage image = null;
 
-        File res = new File(dir, search + ".png");
-
-        if(res.exists())
+        if(file.exists())
             throw new IllegalArgumentException("Result file already exists.");
 
-        res.createNewFile();
+        while(image == null) {
+            try {
+                if(images.size() < 1) {
+                    System.out.println("No Result for search \"" + search + "\". Skipping.");
+                }
 
-        byte[] bytes = resourceBytes(url, client);
-        OutputStream os = new FileOutputStream(res);
-        os.write(bytes);
-        os.flush();
-        os.close();
+                int i = 0; //rdm.nextInt(images.size());
+                HttpUrl url = HttpUrl.parse(images.get(i));
+                images.remove(i);
+                System.out.println("For search \"" + search + "\", found URL: " + url.toString());
 
-        return res;
+                InputStream stream = resourceStream(url, client);
+                image = ImageIO.read(stream);
+                stream.close();
+
+                image.getWidth();
+            } catch(NullPointerException e) {
+                image = null;
+            }
+        }
+
+        file.createNewFile();
+
+
+        int h;
+        int w;
+        if(image.getWidth() >= image.getHeight()) {
+            w = image.getWidth();
+            h = Math.round(image.getWidth() * (((float)height)/((float)width)));
+        } else {
+            h = image.getHeight();
+            w = Math.round(image.getHeight() * (((float)width)/((float)height)));
+        }
+
+        BufferedImage resizedImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics2D = resizedImage.createGraphics();
+        graphics2D.drawImage(image, 0, 0, w, h, null);
+        graphics2D.dispose();
+
+        ImageIO.write(resizedImage, "PNG", file);
     }
 
 }
